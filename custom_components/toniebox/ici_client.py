@@ -25,6 +25,7 @@ from .const import (
     ICI_TOPIC_PLAYBACK,
     ICI_TOPIC_SETTINGS,
     ICI_TOPIC_VOLUME,
+    is_tng_box,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ class TonieboxIciClient:
         """Connect to ICI broker and subscribe to topics for all TNG boxes."""
         self._user_uuid = user_uuid
         self._last_token = access_token
-        self._boxes = [b for b in boxes if b.get("generation") == "tng"]
+        self._boxes = [b for b in boxes if is_tng_box(b)]
 
         if not self._boxes:
             _LOGGER.debug("No TNG Tonieboxes found, skipping ICI connection")

@@ -8,7 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, is_tng_box
 from .content_tonie import (
     ContentTonieCurrentBoxSensor,
     ContentTonieChapterCountSensor,
@@ -69,8 +69,7 @@ async def async_setup_entry(
             if "tngSettings" in features:
                 entities.append(TonieboxBedtimeColorSensor(coordinator, hh_id, tb_id))
             # ICI sensors — TNG boxes only (battery, headphones via real-time push)
-            generation = tb.get("generation", "")
-            if generation == "tng":
+            if is_tng_box(tb):
                 entities += [
                     TonieboxBatterySensor(coordinator, hh_id, tb_id),
                     TonieboxBatteryStatusSensor(coordinator, hh_id, tb_id),

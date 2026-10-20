@@ -1,5 +1,18 @@
 """Constants for the Toniebox integration."""
 
+
+def is_tng_box(box: dict) -> bool:
+    """Whether a Toniebox dict supports TNG-generation features (ICI/live control).
+
+    The cloud's "generation" field only documents "classic", "rosered", "tng"
+    (see API_DOC), but newer Toniebox 2 hardware reports other values there
+    (e.g. "tb2g2") while still exposing the "tngSettings" feature flag. Check
+    that flag instead of hardcoding "tng", so new generation strings keep
+    working.
+    """
+    return "tngSettings" in (box.get("features") or [])
+
+
 DOMAIN = "toniebox"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"

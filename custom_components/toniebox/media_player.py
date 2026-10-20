@@ -17,7 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ICI_VOLUME_MAX_LEVEL
+from .const import DOMAIN, ICI_VOLUME_MAX_LEVEL, is_tng_box
 from .device_info import creative_tonie_device_info, toniebox_device_info
 
 _LOGGER = logging.getLogger(__name__)
@@ -174,7 +174,7 @@ class TonieboxPlayer(CoordinatorEntity, MediaPlayerEntity):
 
     @property
     def _is_tng(self) -> bool:
-        return self._tb.get("generation") == "tng"
+        return is_tng_box(self._tb)
 
     @property
     def supported_features(self) -> MediaPlayerEntityFeature:
