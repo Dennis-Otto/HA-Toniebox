@@ -137,6 +137,12 @@ async def _find_toniebox_target(hass: HomeAssistant, entity_id: str):
     return None, None, None, None
 
 
+def _read_file(path: str) -> bytes:
+    """Read a file outside the event loop (used via async_add_executor_job)."""
+    with open(path, "rb") as f:
+        return f.read()
+
+
 def _slugify(text: str) -> str:
     import re
     text = text.lower().strip()
@@ -290,8 +296,7 @@ def _register_services(hass: HomeAssistant) -> None:
             title = os.path.splitext(filename)[0]
 
         try:
-            with open(file_path, "rb") as f:
-                file_data = f.read()
+            file_data = await hass.async_add_executor_job(_read_file, file_path)
             await client.upload_and_add_chapter(hh_id, t_id, file_data, filename, title)
             await _refresh_all(hass)
             _LOGGER.info("upload_audio: successfully uploaded '%s' to %s", filename, entity_id)
@@ -341,13 +346,29 @@ def _register_services(hass: HomeAssistant) -> None:
         if minutes <= 0:
             coordinator.ici_cancel_sleep_timer(mac)
         else:
-            coordinator.ici_set_sleep_timer(mac, minutes * 60)
+            alarm = call.data.get("alarm")
+            coordinator.ici_set_sleep_timer(
+                mac,
+                minutes * 60,
+                {
+                    "morningLight": bool(alarm.get("morning_light", True)),
+                    "tone": alarm.get("tone", "alarmLoop1.opus"),
+                    "volume": int(alarm.get("volume", 100)),
+                } if alarm else None,
+                bool(call.data.get("one_time_alarm", False)),
+            )
 
     hass.services.async_register(
         DOMAIN, "sleeptimer", handle_sleeptimer,
         schema=vol.Schema({
             vol.Required("entity_id"): cv.string,
-            vol.Required("minutes"): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Required("minutes"): vol.All(vol.Coerce(int), vol.Range(min=0, max=1092)),
+            vol.Optional("one_time_alarm", default=False): bool,
+            vol.Optional("alarm"): vol.Schema({
+                vol.Optional("tone", default="alarmLoop1.opus"): str,
+                vol.Optional("volume", default=100): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+                vol.Optional("morning_light", default=True): bool,
+            }),
         }),
     )
 
@@ -835,11 +856,28 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
         self._ici_publish(mac, ICI_CMD_SLEEP_TIMER, {"state": "on", "duration": 300})
         return self._ici_publish(mac, ICI_CMD_SLEEP_NOW, {})
 
-    def ici_set_sleep_timer(self, mac: str, seconds: int) -> bool:
-        """Arm a sleep timer: the box falls asleep on its own after `seconds`."""
-        return self._ici_publish(
-            mac, ICI_CMD_SLEEP_TIMER, {"state": "on", "duration": int(seconds)}
-        )
+    def ici_set_sleep_timer(
+        self,
+        mac: str,
+        seconds: int,
+        alarm: dict | None = None,
+        one_time_alarm: bool = False,
+    ) -> bool:
+        """Arm a sleep timer: the box falls asleep on its own after `seconds`.
+
+        `seconds` is sent as a uint16 field, so it must stay below 65536
+        (max 1092 minutes); larger values wrap on the box.
+
+        `alarm` arms the alarm that fires when the timer ends, in the shape the
+        official app sends: {"morningLight": bool, "tone": str, "volume": int}.
+        Without it the box only ever gets a plain timer, never an alarm.
+        """
+        payload: dict = {"state": "on", "duration": int(seconds)}
+        if one_time_alarm:
+            payload["oneTimeAlarm"] = True
+        if alarm:
+            payload["alarm"] = alarm
+        return self._ici_publish(mac, ICI_CMD_SLEEP_TIMER, payload)
 
     def ici_cancel_sleep_timer(self, mac: str) -> bool:
         """Cancel a running sleep timer."""
@@ -998,6 +1036,12 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                             "live": tonie.get("live", False),
                             "private": tonie.get("private", False),
                             "transcoding": tonie.get("transcoding", False),
+                            "transcoding_errors": tonie.get("transcodingErrors", []),
+                            "seconds_remaining": tonie.get("secondsRemaining"),
+                            "seconds_present": tonie.get("secondsPresent"),
+                            "chapters_remaining": tonie.get("chaptersRemaining"),
+                            "chapters_present": tonie.get("chaptersPresent"),
+                            "last_update": tonie.get("lastUpdate"),
                         }
 
             except Exception as e:
