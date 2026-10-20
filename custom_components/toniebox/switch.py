@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, is_tng_box
 from .content_tonie import ContentTonieLockSwitch, DiscLockSwitch
 from .device_info import toniebox_device_info, creative_tonie_device_info
 
@@ -24,8 +24,7 @@ async def async_setup_entry(
 
     for hh_id, hh in coordinator.data.get("households", {}).items():
         for tb_id, tb in hh.get("tonieboxes", {}).items():
-            features = tb.get("features", [])
-            is_tng = "tngSettings" in features
+            is_tng = is_tng_box(tb)
 
             # Always available
             entities += [

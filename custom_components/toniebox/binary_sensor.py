@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, TONIEBOX_ONLINE_TIMEOUT_MINUTES
+from .const import DOMAIN, TONIEBOX_ONLINE_TIMEOUT_MINUTES, is_tng_box
 from .content_tonie import (
     ContentTonieActiveBinarySensor,
     ContentTonieLockBinarySensor,
@@ -36,7 +36,7 @@ async def async_setup_entry(
                 TonieboxLEDSensor(coordinator, hh_id, tb_id),
             ]
             # ICI sensors — TNG boxes only (via real-time push)
-            if tb.get("generation") == "tng":
+            if is_tng_box(tb):
                 entities.append(TonieboxChargingSensor(coordinator, hh_id, tb_id))
                 entities.append(HeadphonesConnectedSensor(coordinator, hh_id, tb_id))
                 entities.append(TonieboxSleepTimerActiveSensor(coordinator, hh_id, tb_id))

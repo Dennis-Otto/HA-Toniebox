@@ -24,6 +24,7 @@ from .const import (
     ICI_CMD_PLAYBACK, ICI_CMD_VOLUME, ICI_VOLUME_MAX_LEVEL,
     ICI_CMD_SLEEP_TIMER, ICI_CMD_SLEEP_NOW,
     SORT_BY_RANDOM, STORAGE_VERSION, STORAGE_KEY_SHUFFLE,
+    is_tng_box,
 )
 from .ici_client import TonieboxIciClient
 from .tonie_client import TonieCloudClient, TonieCloudAuthError, TonieCloudAPIError
@@ -334,7 +335,7 @@ def _register_services(hass: HomeAssistant) -> None:
         if not coordinator or not tb:
             _LOGGER.error("sleeptimer: Toniebox not found for %s", call.data["entity_id"])
             return
-        if tb.get("generation") != "tng":
+        if not is_tng_box(tb):
             _LOGGER.warning(
                 "sleeptimer: only supported on Toniebox 2 (TNG); %s is %s",
                 call.data["entity_id"], tb.get("generation"),
@@ -571,9 +572,10 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                         "name": tb.get("name", tb_id),
                         "macAddress": mac,
                         "generation": tb.get("generation"),
+                        "features": tb.get("features", []),
                     })
 
-            tng_boxes = [b for b in all_boxes if b.get("generation") == "tng"]
+            tng_boxes = [b for b in all_boxes if is_tng_box(b)]
             if not tng_boxes:
                 _LOGGER.debug("No TNG boxes found, ICI not needed")
                 return
