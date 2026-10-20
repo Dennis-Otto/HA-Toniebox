@@ -50,7 +50,6 @@ async def async_setup_entry(
 
         # ── Toniebox sensors ──────────────────────────────────────────────────
         for tb_id, tb in hh.get("tonieboxes", {}).items():
-            features = tb.get("features", [])
             entities += [
                 TonieboxCurrentTonieSensor(coordinator, hh_id, tb_id),
                 TonieboxCurrentTonieIdSensor(coordinator, hh_id, tb_id),
@@ -66,7 +65,7 @@ async def async_setup_entry(
             # Timezone sensor — always useful
             entities.append(TonieboxTimezoneSensor(coordinator, hh_id, tb_id))
             # Bedtime color — only on tng
-            if "tngSettings" in features:
+            if is_tng_box(tb):
                 entities.append(TonieboxBedtimeColorSensor(coordinator, hh_id, tb_id))
             # ICI sensors — TNG boxes only (battery, headphones via real-time push)
             if is_tng_box(tb):
