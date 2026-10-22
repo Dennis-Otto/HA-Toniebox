@@ -562,7 +562,7 @@ WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", 
 
 
 def next_alarm(schedules: list, now):
-    """Next wake-up of the enabled alarm schedules after `now` (tz-aware), or None."""
+    """(next wake-up after `now`, its schedule) over the enabled alarm schedules, or (None, None)."""
     candidates = []
     for s in schedules:
         if not (s.get("enabled") and s.get("alarmEnabled")):
@@ -571,9 +571,9 @@ def next_alarm(schedules: list, now):
         for offset in range(8):
             t = (now + timedelta(days=offset)).replace(hour=hour, minute=minute, second=0, microsecond=0)
             if t > now and WEEKDAYS[t.weekday()] in s.get("days", []):
-                candidates.append(t)
+                candidates.append((t, s))
                 break
-    return min(candidates, default=None)
+    return min(candidates, key=lambda c: c[0], default=(None, None))
 
 
 class TonieboxNextAlarmSensor(_TbBase):
@@ -588,11 +588,12 @@ class TonieboxNextAlarmSensor(_TbBase):
 
     @property
     def native_value(self):
-        return next_alarm(self._tb.get("bedtime_schedules", []), dt_util.now())
+        return next_alarm(self._tb.get("bedtime_schedules", []), dt_util.now())[0]
 
     @property
     def extra_state_attributes(self):
-        return {"schedules": self._tb.get("bedtime_schedules", [])}
+        schedules = self._tb.get("bedtime_schedules", [])
+        return {"schedule": next_alarm(schedules, dt_util.now())[1], "schedules": schedules}
 
 
 class _HeadphonesBase(_TbIciBase):

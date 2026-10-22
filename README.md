@@ -152,7 +152,7 @@ Each device appears under **Settings → Devices & Services → Toniebox** with 
 | `binary_sensor.<toniebox>_led_active` | LED status |
 | `binary_sensor.<toniebox>_charging` | Currently charging — unknown when offline (TNG only) |
 | `binary_sensor.<toniebox>_sleeptimer_active` | Whether a sleep timer is running; `sleep_until` attribute shows when the box will sleep, `alarm` the armed alarm (TNG only) |
-| `sensor.<toniebox>_next_alarm` | Next wake-up of the enabled bedtime schedules; `schedules` attribute lists them all (TNG only) |
+| `sensor.<toniebox>_next_alarm` | Next wake-up of the enabled bedtime schedules; `schedule` attribute is the schedule it belongs to, `schedules` lists them all (TNG only) |
 | `switch.<toniebox>_<schedule>` | One per bedtime schedule, turns it on/off (TNG only) |
 | `select.<toniebox>_led_level` | LED brightness |
 | `select.<toniebox>_language` | Language setting |
@@ -437,7 +437,7 @@ automation:
   actions:
     - delay: "00:00:30"   # the box ignores commands right after coming online
     - variables:
-        s: "{{ state_attr('sensor.toniebox_next_alarm', 'schedules')[0] }}"
+        s: "{{ state_attr('sensor.toniebox_next_alarm', 'schedule') }}"
     - action: toniebox.sleeptimer
       data:
         entity_id: media_player.toniebox
@@ -690,7 +690,7 @@ Jedes Gerät erscheint unter **Einstellungen → Geräte & Dienste → Toniebox*
 | `binary_sensor.<toniebox>_led_aktiv` | LED-Status |
 | `binary_sensor.<toniebox>_wird_geladen` | Wird gerade geladen — Unbekannt wenn offline (nur TNG) |
 | `binary_sensor.<toniebox>_schlaftimer_aktiv` | Ob ein Schlaftimer läuft; Attribut `sleep_until` zeigt die Einschlaf-Uhrzeit, `alarm` den gestellten Wecker (nur TNG) |
-| `sensor.<toniebox>_nachster_wecker` | Nächste Weckzeit der aktiven Schlafenszeiten; Attribut `schedules` listet alle (nur TNG) |
+| `sensor.<toniebox>_nachster_wecker` | Nächste Weckzeit der aktiven Schlafenszeiten; Attribut `schedule` ist der zugehörige Zeitplan, `schedules` listet alle (nur TNG) |
 | `switch.<toniebox>_<zeitplan>` | Einer pro Schlafenszeit, schaltet sie ein/aus (nur TNG) |
 | `select.<toniebox>_led_level` | LED-Helligkeit |
 | `select.<toniebox>_sprache` | Spracheinstellung |
@@ -976,7 +976,7 @@ automation:
   actions:
     - delay: "00:00:30"   # direkt nach dem Online-Gehen ignoriert die Box Befehle
     - variables:
-        s: "{{ state_attr('sensor.toniebox_nachster_wecker', 'schedules')[0] }}"
+        s: "{{ state_attr('sensor.toniebox_nachster_wecker', 'schedule') }}"
     - action: toniebox.sleeptimer
       data:
         entity_id: media_player.toniebox
