@@ -1448,6 +1448,10 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                         "sleep_timer": prev_tb.get("sleep_timer") or {},
                         "extras": box.get("extras", {}),
                         "playback_info": playback_info,
+                        "bedtime_schedules": (
+                            await self.client.get_bedtime_schedules(hh_id, b_id)
+                            if "sleepTimerAlarm" in box.get("features", []) else []
+                        ),
                     }
             except Exception as e:
                 _LOGGER.debug("Could not fetch tonieboxes for %s: %s", hh_id, e)

@@ -542,6 +542,9 @@ class TonieCloudClient:
         """GET /tonieboxes/{id} — direct lookup without household."""
         return await self._get(f"/tonieboxes/{toniebox_id}")
 
+    async def get_bedtime_schedules(self, household_id: str, toniebox_id: str) -> list:
+        return await self._get(f"/households/{household_id}/tonieboxes/{toniebox_id}/bedtime-schedules")
+
     async def create_bedtime_schedule(self, household_id: str, toniebox_id: str, payload: dict) -> dict:
         return await self._post(f"/households/{household_id}/tonieboxes/{toniebox_id}/bedtime-schedules", payload)
 
