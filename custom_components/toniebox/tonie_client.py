@@ -542,6 +542,15 @@ class TonieCloudClient:
         """GET /tonieboxes/{id} — direct lookup without household."""
         return await self._get(f"/tonieboxes/{toniebox_id}")
 
+    async def create_bedtime_schedule(self, household_id: str, toniebox_id: str, payload: dict) -> dict:
+        return await self._post(f"/households/{household_id}/tonieboxes/{toniebox_id}/bedtime-schedules", payload)
+
+    async def patch_bedtime_schedule(self, household_id: str, toniebox_id: str, schedule_id: str, payload: dict) -> dict:
+        return await self._patch(f"/households/{household_id}/tonieboxes/{toniebox_id}/bedtime-schedules/{schedule_id}", payload)
+
+    async def delete_bedtime_schedule(self, household_id: str, toniebox_id: str, schedule_id: str) -> None:
+        await self._delete(f"/households/{household_id}/tonieboxes/{toniebox_id}/bedtime-schedules/{schedule_id}")
+
     # ── /playback-info ────────────────────────────────────────────────────────
 
     async def get_playback_info(self, toniebox_id: str, tonie_id: str) -> dict:
