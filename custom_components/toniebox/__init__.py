@@ -823,6 +823,7 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                     "state": stl.get("state"),
                     "duration": stl.get("duration"),
                     "until": stl.get("until"),
+                    "alarm": stl.get("alarm"),
                 }
             else:
                 tb["sleep_timer"] = {}
@@ -922,6 +923,8 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
         if one_time_alarm:
             payload["oneTimeAlarm"] = True
         if alarm:
+            # the app sends this first; without it the box jumps to full volume
+            self._ici_publish(mac, "alarm-preview", {"tone": None})
             payload["alarm"] = alarm
         return self._ici_publish(mac, ICI_CMD_SLEEP_TIMER, payload)
 
