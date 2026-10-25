@@ -36,7 +36,8 @@ async def async_setup_entry(
             if not is_tng:
                 entities.append(TonieboxAccelerometerSwitch(coordinator, hh_id, tb_id))
             for schedule in tb.get("bedtime_schedules", []):
-                entities.append(BedtimeScheduleSwitch(coordinator, hh_id, tb_id, schedule))
+                if schedule.get("id"):
+                    entities.append(BedtimeScheduleSwitch(coordinator, hh_id, tb_id, schedule))
 
         for t_id in hh.get("creativetonies", {}):
             entities += [
@@ -67,6 +68,7 @@ async def async_setup_entry(
         for hh in coordinator.data.get("households", {}).values()
         for tb_id, tb in hh.get("tonieboxes", {}).items()
         for s in tb.get("bedtime_schedules", [])
+        if s.get("id")
     }
 
     @callback
@@ -83,7 +85,7 @@ async def async_setup_entry(
                     new_entities.append(DiscLockSwitch(coordinator, hh_id, disc_id))
             for tb_id, tb in hh.get("tonieboxes", {}).items():
                 for schedule in tb.get("bedtime_schedules", []):
-                    if (tb_id, schedule["id"]) not in known_schedules:
+                    if schedule.get("id") and (tb_id, schedule["id"]) not in known_schedules:
                         known_schedules.add((tb_id, schedule["id"]))
                         new_entities.append(BedtimeScheduleSwitch(coordinator, hh_id, tb_id, schedule))
         if new_entities:
@@ -350,12 +352,17 @@ class BedtimeScheduleSwitch(_TbSwitch):
     def __init__(self, coordinator, hh_id, tb_id, schedule) -> None:
         super().__init__(coordinator, hh_id, tb_id)
         self._schedule_id = schedule["id"]
-        self._attr_name = schedule["name"]
+        self._initial_name = schedule.get("name") or schedule["id"]
         self._attr_unique_id = f"tb_{tb_id}_bedtime_schedule_{schedule['id']}"
 
     @property
     def _schedule(self) -> dict | None:
-        return next((s for s in self._tb.get("bedtime_schedules", []) if s["id"] == self._schedule_id), None)
+        return next((s for s in self._tb.get("bedtime_schedules", []) if s.get("id") == self._schedule_id), None)
+
+    @property
+    def name(self) -> str:
+        # Follow renames made in the tonies app.
+        return (self._schedule or {}).get("name") or self._initial_name
 
     @property
     def available(self) -> bool:
@@ -369,9 +376,14 @@ class BedtimeScheduleSwitch(_TbSwitch):
 
     async def _set(self, enabled: bool) -> None:
         self._optimistic_toggle(enabled)
-        await self.coordinator.client.patch_bedtime_schedule(
-            self._hh_id, self._tb_id, self._schedule_id, {"enabled": enabled}
-        )
+        try:
+            await self.coordinator.client.patch_bedtime_schedule(
+                self._hh_id, self._tb_id, self._schedule_id, {"enabled": enabled}
+            )
+        except Exception:
+            # Don't keep showing a state the cloud never accepted.
+            self._optimistic_toggle(None)
+            raise
         await self.coordinator.async_request_refresh()
 
     async def async_turn_on(self, **kwargs) -> None:

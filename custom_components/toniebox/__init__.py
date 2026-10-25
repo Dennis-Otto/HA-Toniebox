@@ -10,7 +10,11 @@ from datetime import datetime, timedelta, timezone
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, SupportsResponse, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    ServiceValidationError,
+)
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later
@@ -380,16 +384,20 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def handle_set_bedtime_schedule(call):
         client, hh_id, tb_id = await _find_toniebox(hass, call.data["entity_id"])
+        if not client:
+            raise ServiceValidationError(f"{call.data['entity_id']} is not a Toniebox")
         payload = {api: call.data[key] for key, api in schedule_fields.items() if key in call.data}
         if "schedule_id" in call.data:
             result = await client.patch_bedtime_schedule(hh_id, tb_id, call.data["schedule_id"], payload)
         else:
             result = await client.create_bedtime_schedule(hh_id, tb_id, payload)
         await _refresh_all(hass)
-        return result
+        return result if isinstance(result, dict) else {}
 
     async def handle_delete_bedtime_schedule(call):
         client, hh_id, tb_id = await _find_toniebox(hass, call.data["entity_id"])
+        if not client:
+            raise ServiceValidationError(f"{call.data['entity_id']} is not a Toniebox")
         await client.delete_bedtime_schedule(hh_id, tb_id, call.data["schedule_id"])
         await _refresh_all(hass)
 
@@ -947,6 +955,23 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Shuffle-on-swap poll processing failed", exc_info=True)
         return result
 
+    async def _fetch_bedtime_schedules(
+        self, hh_id: str, tb_id: str, box: dict, prev_tb: dict
+    ) -> list:
+        """Bedtime schedules of an alarm-capable box.
+
+        Fetched on its own so a failing request never drops the box from the
+        poll; the last known schedules are kept instead.
+        """
+        if "sleepTimerAlarm" not in box.get("features", []):
+            return []
+        try:
+            schedules = await self.client.get_bedtime_schedules(hh_id, tb_id)
+        except Exception as e:
+            _LOGGER.debug("Could not fetch bedtime schedules for %s: %s", tb_id, e)
+            return prev_tb.get("bedtime_schedules") or []
+        return schedules if isinstance(schedules, list) else []
+
     async def _fetch_all(self) -> dict:
         result: dict = {
             "me": {},
@@ -1451,9 +1476,8 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                         "sleep_timer": prev_tb.get("sleep_timer") or {},
                         "extras": box.get("extras", {}),
                         "playback_info": playback_info,
-                        "bedtime_schedules": (
-                            await self.client.get_bedtime_schedules(hh_id, b_id)
-                            if "sleepTimerAlarm" in box.get("features", []) else []
+                        "bedtime_schedules": await self._fetch_bedtime_schedules(
+                            hh_id, b_id, box, prev_tb
                         ),
                     }
             except Exception as e:

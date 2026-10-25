@@ -561,13 +561,27 @@ class TonieboxLastOnlineSensor(_TbBase):
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 
+def _parse_hhmm(value) -> tuple[int, int] | None:
+    """'HH:MM' or 'HH:MM:SS' -> (hour, minute), None if unusable."""
+    try:
+        hour, minute = (int(p) for p in str(value).split(":")[:2])
+    except (TypeError, ValueError):
+        return None
+    if 0 <= hour < 24 and 0 <= minute < 60:
+        return hour, minute
+    return None
+
+
 def next_alarm(schedules: list, now):
     """(next wake-up after `now`, its schedule) over the enabled alarm schedules, or (None, None)."""
     candidates = []
     for s in schedules:
         if not (s.get("enabled") and s.get("alarmEnabled")):
             continue
-        hour, minute = map(int, s["wakeupTime"].split(":")[:2])
+        hhmm = _parse_hhmm(s.get("wakeupTime"))
+        if hhmm is None:
+            continue
+        hour, minute = hhmm
         for offset in range(8):
             t = (now + timedelta(days=offset)).replace(hour=hour, minute=minute, second=0, microsecond=0)
             if t > now and WEEKDAYS[t.weekday()] in s.get("days", []):
@@ -586,14 +600,20 @@ class TonieboxNextAlarmSensor(_TbBase):
         super().__init__(coordinator, hh_id, tb_id)
         self._attr_unique_id = f"tb_{tb_id}_next_alarm"
 
+    def _now(self):
+        """Now in the box's own time zone — the schedule times are local to the box."""
+        box_tz = self._tb.get("timezone")
+        # Unknown / missing zone -> None -> Home Assistant's own time zone.
+        return dt_util.now(dt_util.get_time_zone(box_tz) if box_tz else None)
+
     @property
     def native_value(self):
-        return next_alarm(self._tb.get("bedtime_schedules", []), dt_util.now())[0]
+        return next_alarm(self._tb.get("bedtime_schedules", []), self._now())[0]
 
     @property
     def extra_state_attributes(self):
         schedules = self._tb.get("bedtime_schedules", [])
-        return {"schedule": next_alarm(schedules, dt_util.now())[1], "schedules": schedules}
+        return {"schedule": next_alarm(schedules, self._now())[1], "schedules": schedules}
 
 
 class _HeadphonesBase(_TbIciBase):
