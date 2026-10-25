@@ -158,6 +158,7 @@
       "bedtime_color": {"name": "Schlafenszeit-Farbe"},
       "chapter_count": {"name": "Kapitel"},
       "total_duration": {"name": "Gesamtdauer"},
+      "next_alarm": {"name": "Nächster Wecker"},
       "settings_applied": {"name": "Einstellungen übertragen"},
       "setup_wifi": {"name": "Setup-WLAN (SSID)"},
       "transcoding": {"name": "Transkodierung"},
@@ -234,5 +235,12 @@
       "headphones_connected": {"name": "Verbunden"},
       "sleeptimer_active": {"name": "Schlaftimer aktiv"}
     }
+  },
+  "common": {
+    "no_chapters": "Keine Kapitel",
+    "chapter_summary": "{count} Kapitel · {minutes} Min",
+    "no_tonie_placed": "Kein Tonie aufgelegt",
+    "chapter_number": "Kapitel {number}",
+    "chapters": "Kapitel"
   }
 }

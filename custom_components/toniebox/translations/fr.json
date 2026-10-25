@@ -206,6 +206,9 @@
   },
   "entity": {
     "sensor": {
+      "next_alarm": {
+        "name": "Prochain réveil"
+      },
       "current_tonie": {
         "name": "Figurine actuelle"
       },
@@ -308,5 +311,12 @@
         "name": "Mélanger au changement"
       }
     }
+  },
+  "common": {
+    "no_chapters": "Aucun chapitre",
+    "chapter_summary": "{count} chapitres · {minutes} min",
+    "no_tonie_placed": "Aucun Tonie posé",
+    "chapter_number": "Chapitre {number}",
+    "chapters": "Chapitres"
   }
 }
