@@ -55,11 +55,15 @@
 - 🌍 **Translations** for English, German, French, Spanish and Italian
 - 🔐 Keycloak OpenID Connect authentication — same credentials as the Toniebox app
 - 🛠️ Config Flow setup — **no YAML required**
-- 📦 HACS compatible
+- 📦 Available via the Home Assistant Marketplace / HACS
 
 ---
 
-## Installation via HACS
+## Installation via Marketplace / HACS
+
+**Home Assistant 2026.11 and newer** come with the built-in **Marketplace** (the successor of HACS): go to **Settings → Marketplace**, search for **Toniebox** and download. If it is not listed, add `https://github.com/git4sim/HA-Toniebox` as a custom repository of type **Integration**.
+
+**Home Assistant 2026.3 to 2026.10** with HACS installed:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=git4sim&repository=HA-Toniebox&category=integration)
 
@@ -593,11 +597,15 @@ That means: it works — but **edge cases may occur**. PRs, bug reports and impr
 - 🌍 **Übersetzungen** für Deutsch, Englisch, Französisch, Spanisch und Italienisch
 - 🔐 Keycloak OpenID Connect Authentifizierung — selbe Zugangsdaten wie die Toniebox App
 - 🛠️ Config Flow Setup — **kein YAML erforderlich**
-- 📦 HACS-kompatibel
+- 📦 Installierbar über den Home Assistant Marketplace / HACS
 
 ---
 
-## Installation via HACS
+## Installation über Marketplace / HACS
+
+**Ab Home Assistant 2026.11** ist der **Marketplace** (Nachfolger von HACS) eingebaut: **Einstellungen → Marketplace** öffnen, nach **Toniebox** suchen und herunterladen. Falls die Integration nicht gelistet ist, `https://github.com/git4sim/HA-Toniebox` als benutzerdefiniertes Repository vom Typ **Integration** hinzufügen.
+
+**Home Assistant 2026.3 bis 2026.10** mit installiertem HACS:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=git4sim&repository=HA-Toniebox&category=integration)
 
