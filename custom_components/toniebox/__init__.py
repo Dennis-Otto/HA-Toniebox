@@ -1029,7 +1029,9 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
         if _ok("creativetonies"):
             prefixes.append("ct_")
         if _ok("contenttonies"):
-            prefixes += ["content_", "disc_"]
+            prefixes.append("content_")
+        if _ok("discs"):
+            prefixes.append("disc_")
         return tuple(prefixes)
 
     @callback
@@ -1143,6 +1145,7 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                 "sources_ok": {
                     "creativetonies": False,
                     "contenttonies": False,
+                    "discs": False,
                     "tonieboxes": False,
                 },
             }
@@ -1309,19 +1312,6 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                     chapters { id title seconds transcoding }
                     """,
                 )
-                discs = await _fetch_relay_all(
-                    "myDiscs",
-                    """
-                    id
-                    householdId
-                    title
-                    coverImageUrl
-                    discImageUrl
-                    lock
-                    language
-                    salesId
-                    """,
-                )
 
                 # Content Tonies
                 for tonie in content_tonies:
@@ -1362,26 +1352,44 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                         "toniebox_id": None,
                     }
 
-                # Discs
-                for disc in discs:
-                    if disc.get("householdId") != hh_id:
-                        continue
-                    d_id = disc.get("id", "")
-                    if not d_id or d_id in hh_data["discs"]:
-                        continue
-                    hh_data["discs"][d_id] = {
-                        "id": d_id,
-                        "name": disc.get("title") or d_id,
-                        "image_url": disc.get("coverImageUrl") or disc.get("discImageUrl"),
-                        "household_id": hh_id,
-                        "locked": disc.get("lock", False),
-                        "language": disc.get("language"),
-                        "sales_id": disc.get("salesId"),
-                        "item_id": None,
-                        "toniebox_id": None,
-                    }
-
                 hh_data["sources_ok"]["contenttonies"] = True
+
+                # Discs — fetched separately so a failing myDiscs query keeps
+                # the Content Tonies loaded above (and only blocks disc cleanup).
+                try:
+                    discs = await _fetch_relay_all(
+                        "myDiscs",
+                        """
+                        id
+                        householdId
+                        title
+                        coverImageUrl
+                        discImageUrl
+                        lock
+                        language
+                        salesId
+                        """,
+                    )
+                    for disc in discs:
+                        if disc.get("householdId") != hh_id:
+                            continue
+                        d_id = disc.get("id", "")
+                        if not d_id or d_id in hh_data["discs"]:
+                            continue
+                        hh_data["discs"][d_id] = {
+                            "id": d_id,
+                            "name": disc.get("title") or d_id,
+                            "image_url": disc.get("coverImageUrl") or disc.get("discImageUrl"),
+                            "household_id": hh_id,
+                            "locked": disc.get("lock", False),
+                            "language": disc.get("language"),
+                            "sales_id": disc.get("salesId"),
+                            "item_id": None,
+                            "toniebox_id": None,
+                        }
+                    hh_data["sources_ok"]["discs"] = True
+                except Exception as e:
+                    _LOGGER.debug("GraphQL discs query failed for %s: %s", hh_id, e)
             except Exception as e:
                 _LOGGER.debug("GraphQL query failed for %s: %s", hh_id, e)
 
