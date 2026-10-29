@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .content_tonie import ContentTonieTuneRemoveButton
-from .device_info import creative_tonie_device_info, toniebox_device_info, household_device_info
+from .device_info import creative_tonie_device_info, toniebox_device_info, household_device_info, forget_removed_ids
 
 
 @dataclass
@@ -65,6 +65,7 @@ async def async_setup_entry(
 
     @callback
     def _async_add_new_button_entities() -> None:
+        forget_removed_ids(coordinator, known_ct_ids, "contenttonies", "content_")
         new_entities: list = []
         for hh_id, hh in coordinator.data.get("households", {}).items():
             for ct_id in hh.get("contenttonies", {}):

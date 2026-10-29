@@ -36,6 +36,26 @@ def _via_device_id(coordinator, parent_identifier: str) -> dict:
     return {"via_device": (DOMAIN, parent_identifier)}
 
 
+def forget_removed_ids(
+    coordinator, known: set[tuple[str, str]], category: str, prefix: str
+) -> None:
+    """Drop (hh_id, item_id) keys whose item and device are both gone.
+
+    Platforms remember which dynamic Content Tonies / Discs they already
+    created entities for. Once such a device was removed (automatically or by
+    the user), the key must be forgotten so the entities are re-created if the
+    Tonie is ever added to the household again.
+    """
+    households = coordinator.data.get("households", {})
+    dev_reg = dr.async_get(coordinator.hass)
+    for key in list(known):
+        hh_id, item_id = key
+        if item_id in households.get(hh_id, {}).get(category, {}):
+            continue
+        if dev_reg.async_get_device(identifiers={(DOMAIN, f"{prefix}{item_id}")}) is None:
+            known.discard(key)
+
+
 def household_device_info(coordinator, hh_id: str) -> dict:
     """Hub device — the Toniebox cloud household."""
     hh = coordinator.data.get("households", {}).get(hh_id, {})

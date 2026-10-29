@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, is_tng_box
 from .content_tonie import ContentTonieLockSwitch, DiscLockSwitch
-from .device_info import toniebox_device_info, creative_tonie_device_info
+from .device_info import toniebox_device_info, creative_tonie_device_info, forget_removed_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +73,8 @@ async def async_setup_entry(
 
     @callback
     def _async_add_new_switch_entities() -> None:
+        forget_removed_ids(coordinator, known_ct_ids, "contenttonies", "content_")
+        forget_removed_ids(coordinator, known_disc_ids, "discs", "disc_")
         new_entities: list = []
         for hh_id, hh in coordinator.data.get("households", {}).items():
             for ct_id in hh.get("contenttonies", {}):

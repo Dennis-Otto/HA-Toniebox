@@ -20,7 +20,7 @@ from .content_tonie import (
     DiscActiveBinarySensor,
     DiscLockBinarySensor,
 )
-from .device_info import toniebox_device_info, headphones_device_info
+from .device_info import toniebox_device_info, headphones_device_info, forget_removed_ids
 
 
 async def async_setup_entry(
@@ -67,6 +67,8 @@ async def async_setup_entry(
 
     @callback
     def _async_add_new_binary_sensor_entities() -> None:
+        forget_removed_ids(coordinator, known_ct_ids, "contenttonies", "content_")
+        forget_removed_ids(coordinator, known_disc_ids, "discs", "disc_")
         new_entities: list = []
         for hh_id, hh in coordinator.data.get("households", {}).items():
             for ct_id in hh.get("contenttonies", {}):
