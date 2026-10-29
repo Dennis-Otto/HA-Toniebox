@@ -21,6 +21,7 @@ from .content_tonie import (
     DiscSalesSensor,
 )
 from .device_info import (
+    forget_removed_ids,
     household_device_info,
     toniebox_device_info,
     headphones_device_info,
@@ -123,6 +124,8 @@ async def async_setup_entry(
 
     @callback
     def _async_add_new_sensor_entities() -> None:
+        forget_removed_ids(coordinator, known_ct_ids, "contenttonies", "content_")
+        forget_removed_ids(coordinator, known_disc_ids, "discs", "disc_")
         new_entities: list = []
         for hh_id, hh in coordinator.data.get("households", {}).items():
             for ct_id in hh.get("contenttonies", {}):

@@ -15,6 +15,7 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     ServiceValidationError,
 )
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later
@@ -76,8 +77,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Remove devices of Tonies / Tonieboxes that are no longer part of the
+    # household (instead of leaving them behind as "unavailable"). Runs once
+    # now and after every successful cloud poll.
+    coordinator.async_remove_stale_devices()
+    entry.async_on_unload(
+        coordinator.async_add_listener(coordinator.async_remove_stale_devices)
+    )
+
     _register_services(hass)
     return True
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow manual removal of a device that is no longer in the Tonie Cloud.
+
+    Devices that still exist in the household are refused, because they would
+    be re-created on the next poll anyway.
+    """
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if coordinator is None or not coordinator.data:
+        return True
+    active = coordinator.active_device_identifiers()
+    return not any(
+        domain == DOMAIN and ident in active
+        for domain, ident in device_entry.identifiers
+    )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -502,6 +530,11 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
         # Last placed tonie per box (box_id → tonie_id | None), tracked in memory
         # to detect a *displacement* (one tonie replaced by a different one).
         self._last_placed: dict[str, str | None] = {}
+        # ── Stale device cleanup ──
+        # Incremented on every completed cloud poll; cleanup runs once per poll
+        # (not on every ICI push, which also notifies coordinator listeners).
+        self._poll_seq = 0
+        self._cleanup_seq = -1
         super().__init__(
             hass, _LOGGER,
             name=DOMAIN,
@@ -947,6 +980,7 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
             raise ConfigEntryAuthFailed(str(err)) from err
         except Exception as err:
             raise UpdateFailed(f"Tonie Cloud error: {err}") from err
+        self._poll_seq += 1
         # Detect Tonie swaps from the freshly polled placement and, if enabled,
         # shuffle any displaced Creative Tonie. Never let this break the poll.
         try:
@@ -954,6 +988,79 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception:
             _LOGGER.warning("Shuffle-on-swap poll processing failed", exc_info=True)
         return result
+
+    # ── Stale device cleanup ───────────────────────────────────────────────────
+
+    def active_device_identifiers(self) -> set[str]:
+        """Return the device identifiers backed by the current cloud data."""
+        active: set[str] = set()
+        for hh_id, hh in (self.data or {}).get("households", {}).items():
+            active.add(f"hh_{hh_id}")
+            for tb_id in hh.get("tonieboxes", {}):
+                active.add(f"tb_{tb_id}")
+                active.add(f"tb_{tb_id}_headphones")
+            for t_id in hh.get("creativetonies", {}):
+                active.add(f"ct_{t_id}")
+            for t_id in hh.get("contenttonies", {}):
+                active.add(f"content_{t_id}")
+            for d_id in hh.get("discs", {}):
+                active.add(f"disc_{d_id}")
+        return active
+
+    def _cleanup_prefixes(self) -> tuple[str, ...]:
+        """Identifier prefixes that may be cleaned up after this poll.
+
+        A category is only eligible if its source was fetched successfully for
+        every household; otherwise a missing item may just be an API hiccup.
+        """
+        data = self.data or {}
+        households = data.get("households", {})
+        if not data.get("households_ok") or not households:
+            return ()
+
+        def _ok(source: str) -> bool:
+            return all(
+                hh.get("sources_ok", {}).get(source) for hh in households.values()
+            )
+
+        prefixes: list[str] = ["hh_"]
+        if _ok("tonieboxes"):
+            prefixes.append("tb_")
+        if _ok("creativetonies"):
+            prefixes.append("ct_")
+        if _ok("contenttonies"):
+            prefixes += ["content_", "disc_"]
+        return tuple(prefixes)
+
+    @callback
+    def async_remove_stale_devices(self) -> None:
+        """Remove devices whose Tonie / Toniebox left the household.
+
+        Without this, a Tonie removed in the Tonies app stays in Home Assistant
+        forever as an "unavailable" device with unavailable entities.
+        """
+        if not self.last_update_success or self._cleanup_seq == self._poll_seq:
+            return
+        self._cleanup_seq = self._poll_seq
+
+        prefixes = self._cleanup_prefixes()
+        if not prefixes:
+            return
+        active = self.active_device_identifiers()
+        dev_reg = dr.async_get(self.hass)
+        for device in dr.async_entries_for_config_entry(dev_reg, self.entry.entry_id):
+            idents = [i for d, i in device.identifiers if d == DOMAIN]
+            if not idents or any(i in active for i in idents):
+                continue
+            if not all(i.startswith(prefixes) for i in idents):
+                continue
+            _LOGGER.info(
+                "Removing device %s (%s): no longer part of the Tonie household",
+                device.name_by_user or device.name, ", ".join(idents),
+            )
+            dev_reg.async_update_device(
+                device.id, remove_config_entry_id=self.entry.entry_id
+            )
 
     async def _fetch_bedtime_schedules(
         self, hh_id: str, tb_id: str, box: dict, prev_tb: dict
@@ -979,6 +1086,9 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
             "notifications": [],
             "system_notifications": [],
             "invitations": [],
+            # True only if the household list itself was fetched successfully.
+            # Used to decide whether stale devices may be removed safely.
+            "households_ok": False,
         }
 
         # User profile
@@ -1011,6 +1121,7 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as e:
             _LOGGER.error("Could not fetch households: %s", e)
             return result
+        result["households_ok"] = isinstance(households, list) and bool(households)
 
         for hh in households:
             hh_id = hh.get("id", "")
@@ -1026,6 +1137,14 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                 "tonieboxes": {},
                 "children": [],
                 "memberships": [],
+                # Which sources were fetched completely in this poll. Devices of
+                # a category are only cleaned up when its source succeeded, so a
+                # transient API error never removes anything.
+                "sources_ok": {
+                    "creativetonies": False,
+                    "contenttonies": False,
+                    "tonieboxes": False,
+                },
             }
 
             # ── Creative Tonies ───────────────────────────────────────────────
@@ -1118,6 +1237,7 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                             "last_update": tonie.get("lastUpdate"),
                         }
 
+                hh_data["sources_ok"]["creativetonies"] = True
             except Exception as e:
                 _LOGGER.warning("Could not fetch creative tonies for %s: %s", hh_id, e)
 
@@ -1155,7 +1275,14 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                         errors = resp.get("errors")
                         if errors:
                             _LOGGER.debug("GraphQL returned errors for %s: %s", field, errors)
-                        connection = (resp.get("data") or {}).get(field) or {}
+                        connection = (resp.get("data") or {}).get(field)
+                        if not isinstance(connection, dict):
+                            # No usable data — treat as a failed fetch instead
+                            # of an empty list (which would look like "all
+                            # Tonies were removed").
+                            raise TonieCloudAPIError(
+                                f"GraphQL {field} returned no data: {errors}"
+                            )
                         edges = connection.get("edges") or []
                         nodes.extend(
                             e["node"] for e in edges
@@ -1254,6 +1381,7 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                         "toniebox_id": None,
                     }
 
+                hh_data["sources_ok"]["contenttonies"] = True
             except Exception as e:
                 _LOGGER.debug("GraphQL query failed for %s: %s", hh_id, e)
 
@@ -1480,6 +1608,7 @@ class TonieboxDataUpdateCoordinator(DataUpdateCoordinator):
                             hh_id, b_id, box, prev_tb
                         ),
                     }
+                hh_data["sources_ok"]["tonieboxes"] = True
             except Exception as e:
                 _LOGGER.debug("Could not fetch tonieboxes for %s: %s", hh_id, e)
 
